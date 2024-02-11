@@ -1,14 +1,14 @@
 #include "fraction.h"
 
-static int abs(int number) {
+static int absoluteValue(int number) {
     return (number>=0)?number:-number;
 }
 
 static int gcd(int num,int den) {
     int remainder;
     
-    num = abs(num);
-    den = abs(den);
+    num = absoluteValue(num);
+    den = absoluteValue(den);
 
     while (den!=0) {
         remainder = num%den;
