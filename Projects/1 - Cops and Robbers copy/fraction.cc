@@ -32,35 +32,76 @@ static int gcd(int num,int den) {
     return num;
 }
 
-static int product(int series[],int end,int start=0) {
+static int seqB(int series[],int mode,int k) {
     int finalVal = 1;
-    for (int i=start;i<end;i++) {
-        finalVal *= series[i];
+    for (int i=0;i<mode;i++) {
+        finalVal *= series[i+k];
     }
     return finalVal;
 }
 
-static Fraction contAlg(int series[],int r_series[],int k,int p=0) {
-    if (k==0) {
-        return Fraction(1,series[k+p]);
+static Fraction seqARevProd(int series[],int mode,int k) {
+    Fraction finalVal = 1;
+    for (int t=2;t<=mode-2;t++) {
+        finalVal *= seqARev(series,t,mode-t-2+k);
     }
-    if (k==1) {
-        return contAlg(series,r_series,k-1,k+p) + series[k+p-1];
+    return finalVal;
+}
+
+static Fraction seqAProd(int series[],int mode,int k) {
+    Fraction finalVal = 1;
+    for (int t=2;t<=mode-2;t++) {
+        finalVal *= seqA(series,t,mode-t+k);
     }
-    if (k==2) {
-        return contAlg(series,r_series,k-1,k+p-1) + Fraction(1,series[k+p-2]); 
+    return finalVal;
+}
+
+static Fraction seqARev(int series[],int mode,int k=0) {
+    Fraction returnFraction = 0;
+    if (mode==1) {
+        returnFraction = Fraction(1,series[k]);
     }
-    if (k==3) {
-        return contAlg(series,r_series,k-1,k+p-2) - Fraction(1,product(series,k+p-2,p)*contAlg(r_series,series,1,p));
+    else if (mode==2) {
+        returnFraction = seqARev(series,mode-1,k) + series[k+1];
     }
-    if (k==4) {
-        return contAlg(series,r_series,k-1,k+p-3) + Fraction(1,product(series,k+p-2,p)*contAlg(r_series,series,1,p)*contAlg(r_series,series,2,p));
+    else {
+        returnFraction = seqARev(series,mode-1,k);
+        returnFraction += (mode%2==0?-1:1)*Fraction(1,seqB(series,mode-2,2+k)*seqAProd(series,mode,k));
     }
-    return Fraction(0);
+    return returnFraction;
+}
+
+static Fraction seqA(int series[],int mode,int k=0) {
+    Fraction returnFraction = 0;
+    if (mode==1) {
+        returnFraction = Fraction(1,series[k]);
+    }
+    else if (mode==2) {
+        returnFraction = seqA(series,mode-1,k+1) + series[k];
+    }
+    else {
+        returnFraction = seqA(series,mode-1,k+1);
+        returnFraction += (mode%2==0?-1:1)*Fraction(1,seqB(series,mode-2,k)*seqARevProd(series,mode,k));
+    }
+    return returnFraction;
+}
+
+static Fraction seqAFinalProd(int series[],int mode) {
+    Fraction finalVal = 1;
+    for (int i=2;i<=mode;i++) {
+        finalVal *= seqA(series,i,0);
+    }
+    return finalVal;
 }
 
 static Fraction buildContinuedFraction(int series[],int size) {
-
+    if (size==0) return Fraction(0);
+    Fraction finalVal = series[0];
+    if (size==1) return finalVal;
+    for (int i=1;i<size;i++) {
+        finalVal += (i%2==0?1:-1)*Fraction(1,seqB(series,i,0)*seqAFinalProd(series,i));
+    }
+    return finalVal;
 }
 
 static Fraction approxContinuedFraction(float decimal) {
@@ -125,18 +166,7 @@ static Fraction approxContinuedFraction(double decimal) {
         resultFraction += integerParts[0];
     }
     else {
-        for (int i=0;i<integerPartsSize;i++) {
-            std::cout << integerParts[i] << std::endl;
-        }
-        resultFraction += integerParts[0];
-        for (int i=1;i<integerPartsSize;i++) {
-            resultFraction += Fraction(1,integerParts[i]);
-            resultFraction = Fraction(1,resultFraction);
-            if (resultFraction.getDen()>MAX_THRESH&&i%2) {
-                break;
-            }
-            std::cout << "parsing: " << resultFraction << " " << integerParts[i] << std::endl;
-        }
+        resultFraction = buildContinuedFraction(integerParts,integerPartsSize);
     }
     return sign ? -resultFraction:resultFraction;
 }
