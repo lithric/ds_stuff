@@ -2,12 +2,18 @@
 
 static const int MAX_DEPTH = (1<<8)-1;
 static const float MIN_FLOAT = (1<<4)*__FLT_EPSILON__;
+static const double MIN_DOUBLE = (1<<4)*__FLT_EPSILON__;
+static const int MAX_THRESH = (1<<15);
 
 static int absoluteValue(int number) {
     return (number>=0)?number:-number;
 }
 
 static float absoluteValue(float number) {
+    return (number>=0)?number:-number;
+}
+
+static double absoluteValue(double number) {
     return (number>=0)?number:-number;
 }
 
@@ -26,8 +32,43 @@ static int gcd(int num,int den) {
     return num;
 }
 
+static int product(int series[],int end,int start=0) {
+    int finalVal = 1;
+    for (int i=start;i<end;i++) {
+        finalVal *= series[i];
+    }
+    return finalVal;
+}
+
+static Fraction contAlg(int series[],int r_series[],int k,int p=0) {
+    if (k==0) {
+        return Fraction(1,series[k+p]);
+    }
+    if (k==1) {
+        return contAlg(series,r_series,k-1,k+p) + series[k+p-1];
+    }
+    if (k==2) {
+        return contAlg(series,r_series,k-1,k+p-1) + Fraction(1,series[k+p-2]); 
+    }
+    if (k==3) {
+        return contAlg(series,r_series,k-1,k+p-2) - Fraction(1,product(series,k+p-2,p)*contAlg(r_series,series,1,p));
+    }
+    if (k==4) {
+        return contAlg(series,r_series,k-1,k+p-3) + Fraction(1,product(series,k+p-2,p)*contAlg(r_series,series,1,p)*contAlg(r_series,series,2,p));
+    }
+    return Fraction(0);
+}
+
+static Fraction buildContinuedFraction(int series[],int size) {
+
+}
+
 static Fraction approxContinuedFraction(float decimal) {
-    if (decimal<MIN_FLOAT) return Fraction(0);
+    return approxContinuedFraction(static_cast<double>(decimal));
+}
+
+static Fraction approxContinuedFraction(double decimal) {
+    if (decimal<MIN_DOUBLE) return Fraction(0);
     bool sign = decimal < 0;
     if (sign) {decimal = -decimal;}
     Fraction resultFraction = 0;
@@ -36,11 +77,11 @@ static Fraction approxContinuedFraction(float decimal) {
     bool isCycling = false;
     int cycleSize = 0;
     int uniqueSteps = 0;
-    float slowDecimal = decimal;
+    double slowDecimal = decimal;
     decimal -= integerParts[0];
-    for (int index=1;decimal>MIN_FLOAT&&index<MAX_DEPTH;index++) {
+    for (int index=1;decimal>MIN_DOUBLE&&index<MAX_DEPTH;index++) {
         decimal = 1/decimal;
-        if (absoluteValue(decimal-slowDecimal)<MIN_FLOAT) {isCycling = true;}
+        if (absoluteValue(decimal-slowDecimal)<MIN_DOUBLE) {isCycling = true;}
         if (isCycling&&integerPartsSize%2==1) {
             // the continued fraction is cycling here.
             // this means that "decimal" is badly approximated by fractions beyond this point.
@@ -65,37 +106,43 @@ static Fraction approxContinuedFraction(float decimal) {
     }
     if (isCycling) {
         for (int i=0;i<(MAX_DEPTH-uniqueSteps)/cycleSize;i++) {
-            for (int j=cycleSize+uniqueSteps-1;j>=uniqueSteps;j--) {
-                if (resultFraction==0) {
-                    resultFraction = integerParts[j];
-                    continue;
-                }
-                resultFraction = Fraction(1,resultFraction) + integerParts[j];
+            if (resultFraction.getDen()>(uint32_t)(MAX_THRESH>>uniqueSteps)) {
+                break;
+            }
+            for (int j=cycleSize+uniqueSteps-1;j>=uniqueSteps+1;j--) {
+                resultFraction += integerParts[j];
+                resultFraction = Fraction(1,resultFraction);
+            }
+            resultFraction += integerParts[uniqueSteps];
+        }
+        for (int i=uniqueSteps-1;i>=1;i--) {
+            resultFraction += integerParts[i];
+            resultFraction = Fraction(1,resultFraction);
+            if (resultFraction.getDen()>MAX_THRESH&&i%2) {
+                break;
             }
         }
-        for (int i=uniqueSteps-1;i<=0;i--) {
-            if (resultFraction==0) {
-                resultFraction = integerParts[i];
-                continue;
-            }
-            resultFraction = Fraction(1,resultFraction) + integerParts[i];
-        }
+        resultFraction += integerParts[0];
     }
     else {
-        for (int i=integerPartsSize-1;i>=0;i--) {
-            if (resultFraction==0) {
-                resultFraction = integerParts[i];
-                continue;
+        for (int i=0;i<integerPartsSize;i++) {
+            std::cout << integerParts[i] << std::endl;
+        }
+        resultFraction += integerParts[0];
+        for (int i=1;i<integerPartsSize;i++) {
+            resultFraction += Fraction(1,integerParts[i]);
+            resultFraction = Fraction(1,resultFraction);
+            if (resultFraction.getDen()>MAX_THRESH&&i%2) {
+                break;
             }
-            resultFraction = Fraction(1,resultFraction) + integerParts[i];
-            std::cout << resultFraction << std::endl;
+            std::cout << "parsing: " << resultFraction << " " << integerParts[i] << std::endl;
         }
     }
     return sign ? -resultFraction:resultFraction;
 }
 
 Fraction::Fraction(int _num,int _den) {
-    int commonDivisor;
+    uint64_t commonDivisor;
     int64_t parsedNum;
     uint64_t parsedDen;
 
@@ -136,6 +183,17 @@ Fraction::Fraction(int _num,Fraction _denFrac) {
 }
 
 Fraction::Fraction(float decimal,Fraction _denFrac) {
+    Fraction approximation;
+
+    approximation = approxContinuedFraction(decimal);
+    approximation.num *= _denFrac.den;
+    approximation.den *= _denFrac.num;
+
+    num = approximation.num;
+    den = approximation.den;
+}
+
+Fraction::Fraction(double decimal,Fraction _denFrac) {
     Fraction approximation;
 
     approximation = approxContinuedFraction(decimal);
@@ -215,39 +273,45 @@ bool Fraction::operator!=(Fraction rhs) {
 bool Fraction::operator>=(Fraction rhs) {
     if (*this==rhs) return true;
     // not equal
-    if (num<0&&rhs.num<0) return -*this<-rhs;
-    // one is positive
-    if (num>0&&rhs.num<0) return true;
-    if (num<0&&rhs.num>0) return false;
-    // both are positive
-    if (num>den&&rhs.num<rhs.den) return true;
-    if (num<den&&rhs.num>rhs.den) return false;
-    // both are >1 or <1
-    if (den==rhs.den) return num>rhs.num;
-    // different denominators
-    if (num==rhs.num&&num>0) return den<rhs.den;
-    // different numerators
-    if (num>=2&&den>=2&&rhs.num>=2&&rhs.den>=2) return num+rhs.den>den+rhs.num;
-    // a numerator or denominator is 1
-    if (den==1) return num>rhs.num/rhs.den;
-    if (rhs.den==1) return num/den>=rhs.num;
-    // a numerator is 1
-    if (num==1) return den<rhs.den/rhs.num;
-    if (rhs.num==1) return rhs.den>=den/num;
     
-    return num*rhs.den>=den*rhs.num;
+    return *this>rhs;
 }
 
 bool Fraction::operator<=(Fraction rhs) {
-    return num*rhs.den<=den*rhs.num;
+    return rhs>=*this;
 }
 
 bool Fraction::operator>(Fraction rhs) {
-    return num*rhs.den>den*rhs.num;
+    // this should work for all extreme cases
+    uint64_t num1;
+    uint64_t num2;
+    uint64_t den1;
+    uint64_t den2;
+    if (*this==rhs) return false;
+    // not equal (non-negotiable)
+    if (num<0&&rhs.num<0) return -rhs>-*this;
+    if (num<0||rhs.num<0) return rhs.num<0;
+    // both are positive (non-negotiable)
+    num1 = static_cast<uint64_t>(num);
+    num2 = static_cast<uint64_t>(rhs.num);
+    den1 = static_cast<uint64_t>(den);
+    den2 = static_cast<uint64_t>(rhs.den);
+    if (num1/den1!=num2/den2) return num1/den1>num2/den2;
+    // same integer part (non-negotiable)
+    num1 = num1 - (num1/den1) * den1; // cannot overflow & cannot be negative
+    num2 = num2 - (num2/den2) * den2; // cannot overflow & cannot be negative
+    // numerators are less than their denominators (as defined by equation)
+    // numerators are less than 32bit unsigned integer (as defined by equation)
+    if (den1<=den2&&num1>=num2) return true;
+    if (den1>=den2&&num1<=num2) return false;
+    // different numerators (non-negotiable)
+    // different denominators (non-negotiable)
+
+    return num1*den2>den1*num1;
 }
 
 bool Fraction::operator<(Fraction rhs) {
-    return num*rhs.den<den*rhs.num;
+    return rhs>*this;
 }
 
 std::istream& operator>>(std::istream& inputStream, Fraction& fraction) {

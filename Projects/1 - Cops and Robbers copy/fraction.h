@@ -11,6 +11,7 @@ class Fraction {
         Fraction(int _num,int _den);
         Fraction(int _num,Fraction _denFrac);
         Fraction(float decimal,Fraction _denFrac=1);
+        Fraction(double decimal,Fraction _denFrac=1);
         ~Fraction() = default;
 
         Fraction operator=(Fraction rhs);
@@ -32,6 +33,7 @@ class Fraction {
 
         Fraction operator-() {return Fraction(-num,den);} // unary minus
 
+        explicit operator double() {return (double)num/(double)den;}
         explicit operator float() {return (float)num/(float)den;}
         explicit operator int() {return num/den;}
 
