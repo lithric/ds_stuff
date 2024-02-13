@@ -8,7 +8,7 @@
 using namespace std;
 
 int main () {
-    double num = 0.32489422534;
+    double num = 0.312312312312;
     Fraction test1 = num;
     cout << test1 << endl;
     cout << (float)test1 << endl;

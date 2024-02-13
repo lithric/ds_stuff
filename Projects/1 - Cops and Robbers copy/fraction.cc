@@ -1,5 +1,19 @@
 #include "fraction.h"
 
+static int absoluteValue(int);
+static float absoluteValue(float);
+static double absoluteValue(double);
+static int gcd(int,int);
+static int seqB(int[],int,int);
+static Fraction seqARevProd(int[],int,int);
+static Fraction seqAProd(int[],int,int);
+static Fraction seqA(int[],int,int);
+static Fraction seqARev(int[],int,int);
+static Fraction seqAFinalProd(int[],int);
+static Fraction buildContinuedFraction(int[],int);
+static Fraction approxContinuedFraction(float);
+static Fraction approxContinuedFraction(double);
+
 static const int MAX_DEPTH = (1<<8)-1;
 static const float MIN_FLOAT = (1<<4)*__FLT_EPSILON__;
 static const double MIN_DOUBLE = (1<<4)*__FLT_EPSILON__;
@@ -34,7 +48,7 @@ static int gcd(int num,int den) {
 
 static int seqB(int series[],int mode,int k) {
     int finalVal = 1;
-    for (int i=0;i<mode;i++) {
+    for (int i=1;i<=mode;i++) {
         finalVal *= series[i+k];
     }
     return finalVal;
@@ -48,6 +62,21 @@ static Fraction seqARevProd(int series[],int mode,int k) {
     return finalVal;
 }
 
+static Fraction seqA(int series[],int mode,int k=0) {
+    Fraction returnFraction = 0;
+    if (mode==1) {
+        returnFraction = Fraction(1,series[k+1]);
+    }
+    else if (mode==2) {
+        returnFraction = seqA(series,1,k+1) + series[k+1];
+    }
+    else {
+        returnFraction = seqA(series,mode-1,k+1);
+        returnFraction += (mode%2==0?-1:1)*Fraction(1,seqB(series,mode-2,k)*seqARevProd(series,mode,k));
+    }
+    return returnFraction;
+}
+
 static Fraction seqAProd(int series[],int mode,int k) {
     Fraction finalVal = 1;
     for (int t=2;t<=mode-2;t++) {
@@ -59,29 +88,14 @@ static Fraction seqAProd(int series[],int mode,int k) {
 static Fraction seqARev(int series[],int mode,int k=0) {
     Fraction returnFraction = 0;
     if (mode==1) {
-        returnFraction = Fraction(1,series[k]);
+        returnFraction = Fraction(1,series[k+1]);
     }
     else if (mode==2) {
-        returnFraction = seqARev(series,mode-1,k) + series[k+1];
+        returnFraction = seqARev(series,1,k) + series[k+2];
     }
     else {
         returnFraction = seqARev(series,mode-1,k);
         returnFraction += (mode%2==0?-1:1)*Fraction(1,seqB(series,mode-2,2+k)*seqAProd(series,mode,k));
-    }
-    return returnFraction;
-}
-
-static Fraction seqA(int series[],int mode,int k=0) {
-    Fraction returnFraction = 0;
-    if (mode==1) {
-        returnFraction = Fraction(1,series[k]);
-    }
-    else if (mode==2) {
-        returnFraction = seqA(series,mode-1,k+1) + series[k];
-    }
-    else {
-        returnFraction = seqA(series,mode-1,k+1);
-        returnFraction += (mode%2==0?-1:1)*Fraction(1,seqB(series,mode-2,k)*seqARevProd(series,mode,k));
     }
     return returnFraction;
 }
@@ -98,8 +112,13 @@ static Fraction buildContinuedFraction(int series[],int size) {
     if (size==0) return Fraction(0);
     Fraction finalVal = series[0];
     if (size==1) return finalVal;
+    Fraction protectVal = finalVal;
     for (int i=1;i<size;i++) {
-        finalVal += (i%2==0?1:-1)*Fraction(1,seqB(series,i,0)*seqAFinalProd(series,i));
+        protectVal = finalVal + (i%2==1?1:-1)*Fraction(1,seqB(series,i,0)*seqAFinalProd(series,i));
+        if (protectVal.getNum()>(1LL<<60)||protectVal.getDen()>(1LL<<26)) {
+            break;
+        }
+        finalVal = protectVal;
     }
     return finalVal;
 }
